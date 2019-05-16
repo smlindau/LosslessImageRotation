@@ -1,34 +1,69 @@
 function rotatedImage = rotateLosslessImage(baseImage,rotateAngle)
 
-% Determine the size of the image and begin a loop through each row of the image
+baseImage = getNormalized(double(baseImage));
+
+% Determine the size of the image
 imageSize = size(baseImage);
-rotatedImage = zeros(imageSize(1),imageSize(2),imageSize(3));
-for row = 1:imageSize(1)
-	
-	% Step through each pixel in the row and compute a new non-integer pixel location
-  	for col = 1:imageSize(2)
-    
-		newPixelLoc(col,:) = [1 + (col-8)*cosd(rotateAngle) + (row-1)*sind(rotateAngle),...
-			1 + (col-8)*sind(rotateAngle) - (row-1)*cosd(rotateAngle)];
+
+% Pad the edges of the base image to be larger than the of maximum rotation
+padLength = ceil(sqrt(imageSize(1)^2+imageSize(2)^2));
+padLength = ceil([padLength-imageSize(1),padLength-imageSize(2)]);
+baseImage = padarray(baseImage,padLength,'both');
+
+% Initialize rotated image
+if numel(imageSize) == 2
+    rotatedImage = zeros(imageSize(1),imageSize(2));
+else
+    rotatedImage = zeros(imageSize(1),imageSize(2),imageSize(3));
+end
+
+rotatedImage = padarray(rotatedImage,padLength,'both');
+
+clf
+imshow(baseImage)
+hold on
+
+for row = 1+padLength(1):imageSize(1)+padLength(1)
+    % Step through each pixel in the row and compute a new pixel location
+  	for col = 1+padLength(2):imageSize(2)+padLength(2)
+        
+        plot(row,col,'ro')
+        
+		newPixelLoc(col,:) =...
+            [col*cosd(rotateAngle) - row*sind(rotateAngle),...
+            col*sind(rotateAngle) + row*cosd(rotateAngle)]; %#ok<AGROW>
 			
-		% Set a test rectangle around the rotated pixel location
-		testRectangle = getTestRectangle(newPixelLoc(col,1),newPixelLoc(col,2),rotationAngle);
+        plot(newPixelLoc(col,2),newPixelLoc(col,1),'go')
+        
+        % Set a test rectangle around the rotated pixel location
+		testRectangle = getTestRectangle(newPixelLoc(col,1),...
+            newPixelLoc(col,2),rotateAngle);
+        
+        plot(testRectangle(:,2),testRectangle(:,1),'bo')
 		
-		% For each pixel within 1 px of the pixel location, step through and determine the overlap
-		for i = floor(min(testRectangle(:,1))):ceil(max(testRectangle(:,1)))
-			for j = floor(min(testRectangle(:,2))):ceil(max(testRectangle(:,2)))
+        % For each pixel within 1 px of the pixel location, find the overlap
+		for i = floor(min(testRectangle(:,1))):...
+                ceil(max(testRectangle(:,1)))
+			for j = floor(min(testRectangle(:,2))):...
+                    ceil(max(testRectangle(:,2)))
 				
-				% Define the rectangle pixel to check for overlaps
-				overlapPixel = [i-.5 j-.5]' [i+.5 j-.5]' [i+.5 j+.5]' [i-.5 j+.5];
+                % Define the rectangle pixel to check for overlaps
+				overlapPixel = [[i-.5 j-.5]' [i+.5 j-.5]' ...
+                    [i+.5 j+.5]' [i-.5 j+.5]']';
+                
+                plot(overlapPixel(:,2),overlapPixel(:,1),'r.')
 				
-				% Determine the area overlap of the pixels
-				areaOverlap = getAreaOverlap(testRectange,overlapPixel);
+                % Determine the area overlap of the pixels
+				areaOverlap = getAreaOverlap(testRectangle,overlapPixel);
 				
-				% Assign the pixel value for the rotated image
-				rotatedImage(row,col,:) = rotatedImage(row,col,:) + areaOverlap*baseImage(j,i,:);
+                % Assign the pixel value for the rotated image
+				rotatedImage(row+padLength(2),col+padLength(1),:) = ...
+                    rotatedImage(row,col,:) +...
+                    areaOverlap*baseImage(j+padLength(2),i+padLength(1),:);
 			end
 		end
-  	end
+    end
+    disp(row)
 end
 
 end
@@ -61,7 +96,7 @@ rect(4,:) = point - rowA + rowB;
 end
 
 %% Anonymous function for determining the area overlap
-% Uses the points of two quadrangles to determine the area overlap of two squares
+% Uses the points of two quadrangles to determine the area overlap
 function overlap = getAreaOverlap(testQuadrangle,overlapPixelQuadrangle)
 
 % Assign the x and y coordinates of the test quadrangle to new variables
